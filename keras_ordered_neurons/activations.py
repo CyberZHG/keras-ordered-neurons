@@ -18,7 +18,7 @@ def cumax(x, axis=-1):
     # Raises
         ValueError: In case `dim(x) == 1`.
     """
-    ndim = K.ndim(x)
-    if ndim == 1:
-        raise ValueError('Cannot apply cumax to a tensor that is 1D')
+    if K.backend() == 'cntk':
+        from .cntk_backend import cumsum
+        return cumsum(softmax(x, axis), axis)
     return K.cumsum(softmax(x, axis), axis)
