@@ -72,7 +72,7 @@ class ONLSTMCell(Layer):
                  **kwargs):
         super(ONLSTMCell, self).__init__(**kwargs)
         if units % chunk_size != 0:
-            raise ValueError('`units` should be divisible by `chunk_size`, found: %d and %d.'.format(units, chunk_size))
+            raise ValueError('`units` should be divisible by `chunk_size`, found: {} and {}.'.format(units, chunk_size))
         self.units = units
         self.chunk_size = chunk_size
         self.master_units = self.units // self.chunk_size

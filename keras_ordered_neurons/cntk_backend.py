@@ -1,16 +1,15 @@
 import cntk as C
 import numpy as np
+import keras.backend as K
 
 
 __all__ = ['cumsum']
 
 
-def cumsum(x, axis=0):
-    dim = x.shape[axis]
+def cumsum(x, axis=-1):
+    if axis != -1 and axis != K.ndim(x) - 1:
+        raise ValueError('Only the last axis could be used, found: {}'.format(axis))
+    dim = x.shape[-1]
     U = C.constant(np.triu(np.ones((dim, dim))).astype(x.dtype))
-    if axis != -1:
-        x = C.swapaxes(x, -1, axis)
     out = C.times(x, U)
-    if axis != -1:
-        out = C.swapaxes(out, -1, axis)
     return out

@@ -1,7 +1,6 @@
 from unittest import TestCase
 import numpy as np
 import keras.backend as K
-from keras_ordered_neurons.cntk_backend import cumsum
 
 
 class TestCumsum(TestCase):
@@ -9,6 +8,7 @@ class TestCumsum(TestCase):
     def test_valid_last_axis(self):
         if K.backend() != 'cntk':
             return
+        from keras_ordered_neurons.cntk_backend import cumsum
         x = K.placeholder(shape=(3, 4))
         f = K.function([x], [cumsum(x, axis=-1)])
         predicted = f([np.array([
@@ -25,21 +25,10 @@ class TestCumsum(TestCase):
             predicted
         ), predicted)
 
-    def test_valid_mid_axis(self):
+    def test_invalid_axis(self):
         if K.backend() != 'cntk':
             return
-        x = K.placeholder(shape=(3, 4))
-        f = K.function([x], [cumsum(x, axis=-2)])
-        predicted = f([np.array([
-            [1.0, 1.0, 1.0, 1.0],
-            [1.0, 2.0, 3.0, 4.0],
-            [4.0, 3.0, 2.0, 1.0],
-        ])])[0]
-        self.assertTrue(np.allclose(
-            np.array([
-                [1.0, 1.0, 1.0, 1.0],
-                [2.0, 3.0, 4.0, 5.0],
-                [6.0, 6.0, 6.0, 6.0],
-            ]),
-            predicted
-        ), predicted)
+        from keras_ordered_neurons.cntk_backend import cumsum
+        with self.assertRaises(ValueError):
+            x = K.placeholder(shape=(1, 3, 4))
+            f = K.function([x], [cumsum(x, axis=1)])

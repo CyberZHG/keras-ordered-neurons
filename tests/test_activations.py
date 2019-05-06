@@ -24,12 +24,3 @@ class TestCumax(TestCase):
             np.array([0.25, 0.5, 0.75, 1.0]),
             predicted[0]
         ), predicted)
-
-    def test_valid_set_axis(self):
-        x = K.placeholder(shape=(3, 4, 2))
-        f = K.function([x], [cumax(x, axis=1)])
-        predicted = f([np.random.standard_normal((3, 4, 2))])[0]
-        self.assertTrue(np.allclose(
-            np.ones((3, 2)),
-            predicted[:, -1, :],
-        ), predicted)
