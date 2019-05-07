@@ -13,7 +13,7 @@ class TestONLSTM(TestCase):
             model = models.Sequential()
             model.add(ONLSTM(units=13, chunk_size=5, input_shape=(None, 100)))
 
-    def test_return_splits(self):
+    def test_return_all_splits(self):
         inputs = layers.Input(shape=(None,))
         embed = layers.Embedding(input_dim=10, output_dim=100)(inputs)
         outputs = ONLSTM(units=50, chunk_size=5, return_sequences=True, return_splits=True)(embed)
@@ -23,6 +23,17 @@ class TestONLSTM(TestCase):
         predicted = model.predict(np.random.randint(0, 10, (3, 7)))
         self.assertEqual((3, 7, 50), predicted[0].shape)
         self.assertEqual((3, 7, 2), predicted[1].shape)
+
+    def test_return_last_splits(self):
+        inputs = layers.Input(shape=(None,))
+        embed = layers.Embedding(input_dim=10, output_dim=100)(inputs)
+        outputs = ONLSTM(units=50, chunk_size=5, return_splits=True)(embed)
+        model = models.Model(inputs=inputs, outputs=outputs)
+        model.compile(optimizer='adam', loss='mse')
+        model.summary(line_length=120)
+        predicted = model.predict(np.random.randint(0, 10, (3, 7)))
+        self.assertEqual((3, 50), predicted[0].shape)
+        self.assertEqual((3, 2), predicted[1].shape)
 
     def test_fit_classification(self):
         model = models.Sequential()

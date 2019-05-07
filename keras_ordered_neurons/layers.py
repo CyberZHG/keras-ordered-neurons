@@ -68,6 +68,7 @@ class ONLSTMCell(layers.Layer):
                  bias_constraint=None,
                  dropout=0.,
                  recurrent_dropout=0.,
+                 return_splits=False,
                  **kwargs):
         super(ONLSTMCell, self).__init__(**kwargs)
         if units % chunk_size != 0:
@@ -94,7 +95,13 @@ class ONLSTMCell(layers.Layer):
 
         self.dropout = min(1., max(0., dropout))
         self.recurrent_dropout = min(1., max(0., recurrent_dropout))
-        self.state_size = (self.units + 2, self.units)
+
+        self.return_splits = return_splits
+
+        if return_splits:
+            self.state_size = (self.units + 2, self.units)
+        else:
+            self.state_size = (self.units, self.units)
         self.output_size = self.units
         self._dropout_mask = None
         self._recurrent_dropout_mask = None
@@ -176,6 +183,11 @@ class ONLSTMCell(layers.Layer):
         super(ONLSTMCell, self).build(input_shape)
 
     def call(self, inputs, states, training=None):
+        h_tm1 = states[0]  # previous memory state
+        c_tm1 = states[1]  # previous carry state
+        if self.return_splits:
+            h_tm1 = h_tm1[:, :-2]
+
         if 0 < self.dropout < 1 and self._dropout_mask is None:
             self._dropout_mask = _generate_dropout_mask(
                 K.ones_like(inputs),
@@ -185,7 +197,7 @@ class ONLSTMCell(layers.Layer):
         if (0 < self.recurrent_dropout < 1 and
                 self._recurrent_dropout_mask is None):
             self._recurrent_dropout_mask = _generate_dropout_mask(
-                K.ones_like(states[0][:, :-2]),
+                K.ones_like(h_tm1),
                 self.recurrent_dropout,
                 training=training,
                 count=6)
@@ -194,9 +206,6 @@ class ONLSTMCell(layers.Layer):
         dp_mask = self._dropout_mask
         # dropout matrices for recurrent units
         rec_dp_mask = self._recurrent_dropout_mask
-
-        h_tm1 = states[0][:, :-2]  # previous memory state
-        c_tm1 = states[1]          # previous carry state
 
         if 0 < self.dropout < 1.:
             inputs_i = inputs * dp_mask[0]
@@ -244,8 +253,9 @@ class ONLSTMCell(layers.Layer):
         i = self.recurrent_activation(x_i + K.dot(h_tm1_i, self.recurrent_kernel_i))
         mf = cumax(x_mf + K.dot(h_tm1_mf, self.recurrent_kernel_mf))
         mi = 1.0 - cumax(x_mi + K.dot(h_tm1_mi, self.recurrent_kernel_mi))
-        df = self.master_units - K.sum(mf, axis=-1, keepdims=True)
-        di = K.sum(mi, axis=-1, keepdims=True)
+        if self.return_splits:
+            df = self.master_units - K.sum(mf, axis=-1, keepdims=True)
+            di = K.sum(mi, axis=-1, keepdims=True)
         mf = K.repeat_elements(mf, self.chunk_size, axis=-1)
         mi = K.repeat_elements(mi, self.chunk_size, axis=-1)
         w = mf * mi
@@ -255,7 +265,8 @@ class ONLSTMCell(layers.Layer):
         o = self.recurrent_activation(x_o + K.dot(h_tm1_o, self.recurrent_kernel_o))
 
         h = o * self.activation(c)
-        h = K.concatenate([h, df, di], axis=-1)
+        if self.return_splits:
+            h = K.concatenate([h, df, di], axis=-1)
         if 0 < self.dropout + self.recurrent_dropout:
             if training is None:
                 h._uses_learning_phase = True
@@ -280,6 +291,7 @@ class ONLSTMCell(layers.Layer):
             'bias_constraint': constraints.serialize(self.bias_constraint),
             'dropout': self.dropout,
             'recurrent_dropout': self.recurrent_dropout,
+            'return_splits': self.return_splits,
         }
         base_config = super(ONLSTMCell, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
@@ -393,6 +405,7 @@ class ONLSTM(layers.RNN):
             bias_constraint=bias_constraint,
             dropout=dropout,
             recurrent_dropout=recurrent_dropout,
+            return_splits=return_splits,
         )
         self.return_splits = return_splits
         super(ONLSTM, self).__init__(
@@ -410,7 +423,10 @@ class ONLSTM(layers.RNN):
         if self.return_splits:
             if not isinstance(output_shapes, list):
                 output_shapes = [output_shapes]
-            output_shapes.append((input_shape[0], input_shape[1], 2))
+            if self.return_sequences:
+                output_shapes.append((input_shape[0], input_shape[1], 2))
+            else:
+                output_shapes.append((input_shape[0], 2))
         return output_shapes
 
     def compute_mask(self, inputs, mask):
@@ -430,20 +446,16 @@ class ONLSTM(layers.RNN):
             training=training,
             initial_state=initial_state,
         )
-        multiple_outputs = isinstance(outputs, list)
-        if not multiple_outputs:
-            outputs = [outputs]
-        if self.return_sequences:
-            splits = outputs[0][:, :, -2:]
-            outputs[0] = outputs[0][:, :, :-2]
-        else:
-            splits = outputs[0][:, -2:]
-            outputs[0] = outputs[0][:, :-2]
         if self.return_splits:
-            multiple_outputs = True
+            if not isinstance(outputs, list):
+                outputs = [outputs]
+            if self.return_sequences:
+                splits = outputs[0][:, :, -2:]
+                outputs[0] = outputs[0][:, :, :-2]
+            else:
+                splits = outputs[0][:, -2:]
+                outputs[0] = outputs[0][:, :-2]
             outputs.append(splits)
-        if not multiple_outputs:
-            outputs = outputs[0]
         return outputs
 
     @property
