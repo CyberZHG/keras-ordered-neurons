@@ -28,3 +28,5 @@ model.add(Dense(units=2, activation='softmax'))
 model.compile(optimizer='adam', loss='sparse_categorical_crossentropy')
 model.summary()
 ```
+
+Add `TF_KERAS=1` to environment variables if you are using `tensorflow.python.keras`.

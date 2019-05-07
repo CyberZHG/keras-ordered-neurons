@@ -1,8 +1,7 @@
 import warnings
 
-from keras.layers import Layer, RNN
-from keras import activations, initializers, regularizers, constraints
-import keras.backend as K
+from .backend import layers, activations, initializers, regularizers, constraints
+from .backend import backend as K
 
 from .activations import cumax
 
@@ -19,7 +18,7 @@ def _generate_dropout_mask(ones, rate, training=None, count=1):
         training=training) for _ in range(count)]
 
 
-class ONLSTMCell(Layer):
+class ONLSTMCell(layers.Layer):
     """Cell class for the ON-LSTM layer.
 
     # Arguments
@@ -283,7 +282,7 @@ class ONLSTMCell(Layer):
         return dict(list(base_config.items()) + list(config.items()))
 
 
-class ONLSTM(RNN):
+class ONLSTM(layers.RNN):
     """Ordered Neurons LSTM
 
     # Arguments

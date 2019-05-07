@@ -1,6 +1,6 @@
 from unittest import TestCase
 import numpy as np
-import keras.backend as K
+from keras_ordered_neurons.backend import backend as K
 
 
 class TestCumsum(TestCase):

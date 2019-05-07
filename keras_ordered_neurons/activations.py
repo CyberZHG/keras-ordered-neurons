@@ -1,5 +1,5 @@
-from keras.activations import softmax
-import keras.backend as K
+from .backend import activations
+from .backend import backend as K
 
 
 __all__ = ['cumax']
@@ -20,5 +20,5 @@ def cumax(x, axis=-1):
     """
     if K.backend() == 'cntk':
         from .cntk_backend import cumsum
-        return cumsum(softmax(x, axis), axis)
-    return K.cumsum(softmax(x, axis), axis)
+        return cumsum(activations.softmax(x, axis), axis)
+    return K.cumsum(activations.softmax(x, axis), axis)

@@ -1,6 +1,6 @@
 import cntk as C
 import numpy as np
-import keras.backend as K
+from .backend import backend as K
 
 
 __all__ = ['cumsum']
