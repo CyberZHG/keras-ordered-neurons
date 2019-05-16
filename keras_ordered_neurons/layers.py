@@ -12,10 +12,9 @@ def _generate_dropout_mask(ones, rate, training=None, count=1):
     def dropped_inputs():
         return K.dropout(ones, rate)
 
-    return [K.in_train_phase(
-        dropped_inputs,
-        ones,
-        training=training) for _ in range(count)]
+    if count > 1:
+        return [K.in_train_phase(dropped_inputs, ones, training=training) for _ in range(count)]
+    return K.in_train_phase(dropped_inputs, ones, training=training)
 
 
 class ONLSTMCell(layers.Layer):
@@ -68,6 +67,7 @@ class ONLSTMCell(layers.Layer):
                  bias_constraint=None,
                  dropout=0.,
                  recurrent_dropout=0.,
+                 recurrent_dropconnect=0.,
                  return_splits=False,
                  **kwargs):
         super(ONLSTMCell, self).__init__(**kwargs)
@@ -95,6 +95,7 @@ class ONLSTMCell(layers.Layer):
 
         self.dropout = min(1., max(0., dropout))
         self.recurrent_dropout = min(1., max(0., recurrent_dropout))
+        self.recurrent_dropconnect = min(1., max(0., recurrent_dropconnect))
 
         self.return_splits = return_splits
 
@@ -105,6 +106,7 @@ class ONLSTMCell(layers.Layer):
         self.output_size = self.units
         self._dropout_mask = None
         self._recurrent_dropout_mask = None
+        self._recurrect_dropconnect_masks = None
 
         self.kernel, self.recurrent_kernel, self.bias = None, None, None
         self.kernel_i, self.kernel_f, self.kernel_c, self.kernel_o, self.kernel_mf, self.kernel_mi = (None,) * 6
@@ -194,18 +196,34 @@ class ONLSTMCell(layers.Layer):
                 self.dropout,
                 training=training,
                 count=6)
-        if (0 < self.recurrent_dropout < 1 and
-                self._recurrent_dropout_mask is None):
+        if 0 < self.recurrent_dropout < 1 and self._recurrent_dropout_mask is None:
             self._recurrent_dropout_mask = _generate_dropout_mask(
                 K.ones_like(h_tm1),
                 self.recurrent_dropout,
                 training=training,
                 count=6)
 
+        if 0 < self.recurrent_dropconnect < 1 and self._recurrect_dropconnect_masks is None:
+            self._recurrect_dropconnect_masks = [
+                _generate_dropout_mask(
+                    K.ones_like(recurrent_kernel),
+                    self.recurrent_dropconnect,
+                    training=training,
+                ) for recurrent_kernel in [
+                    self.recurrent_kernel_i,
+                    self.recurrent_kernel_f,
+                    self.recurrent_kernel_c,
+                    self.recurrent_kernel_o,
+                    self.recurrent_kernel_mf,
+                    self.recurrent_kernel_mi,
+                ]]
+
         # dropout matrices for input units
         dp_mask = self._dropout_mask
         # dropout matrices for recurrent units
         rec_dp_mask = self._recurrent_dropout_mask
+        # dropconnect matrices for recurrent weights
+        rec_dc_mask = self._recurrect_dropconnect_masks
 
         if 0 < self.dropout < 1.:
             inputs_i = inputs * dp_mask[0]
@@ -249,10 +267,26 @@ class ONLSTMCell(layers.Layer):
             h_tm1_o = h_tm1
             h_tm1_mf = h_tm1
             h_tm1_mi = h_tm1
-        f = self.recurrent_activation(x_f + K.dot(h_tm1_f, self.recurrent_kernel_f))
-        i = self.recurrent_activation(x_i + K.dot(h_tm1_i, self.recurrent_kernel_i))
-        mf = cumax(x_mf + K.dot(h_tm1_mf, self.recurrent_kernel_mf))
-        mi = 1.0 - cumax(x_mi + K.dot(h_tm1_mi, self.recurrent_kernel_mi))
+
+        if 0 < self.recurrent_dropconnect < 1.:
+            recurrent_kernel_i = self.recurrent_kernel_i * rec_dc_mask[0]
+            recurrent_kernel_f = self.recurrent_kernel_f * rec_dc_mask[1]
+            recurrent_kernel_c = self.recurrent_kernel_c * rec_dc_mask[2]
+            recurrent_kernel_o = self.recurrent_kernel_o * rec_dc_mask[3]
+            recurrent_kernel_mf = self.recurrent_kernel_mf * rec_dc_mask[4]
+            recurrent_kernel_mi = self.recurrent_kernel_mi * rec_dc_mask[5]
+        else:
+            recurrent_kernel_i = self.recurrent_kernel_i
+            recurrent_kernel_f = self.recurrent_kernel_f
+            recurrent_kernel_c = self.recurrent_kernel_c
+            recurrent_kernel_o = self.recurrent_kernel_o
+            recurrent_kernel_mf = self.recurrent_kernel_mf
+            recurrent_kernel_mi = self.recurrent_kernel_mi
+
+        f = self.recurrent_activation(x_f + K.dot(h_tm1_f, recurrent_kernel_f))
+        i = self.recurrent_activation(x_i + K.dot(h_tm1_i, recurrent_kernel_i))
+        mf = cumax(x_mf + K.dot(h_tm1_mf, recurrent_kernel_mf))
+        mi = 1.0 - cumax(x_mi + K.dot(h_tm1_mi, recurrent_kernel_mi))
         if self.return_splits:
             df = self.master_units - K.sum(mf, axis=-1, keepdims=True)
             di = K.sum(mi, axis=-1, keepdims=True)
@@ -261,8 +295,8 @@ class ONLSTMCell(layers.Layer):
         w = mf * mi
         f = f * w + (mf - w)
         i = i * w + (mi - w)
-        c = f * c_tm1 + i * self.activation(x_c + K.dot(h_tm1_c, self.recurrent_kernel_c))
-        o = self.recurrent_activation(x_o + K.dot(h_tm1_o, self.recurrent_kernel_o))
+        c = f * c_tm1 + i * self.activation(x_c + K.dot(h_tm1_c, recurrent_kernel_c))
+        o = self.recurrent_activation(x_o + K.dot(h_tm1_o, recurrent_kernel_o))
 
         h = o * self.activation(c)
         if self.return_splits:
@@ -291,6 +325,7 @@ class ONLSTMCell(layers.Layer):
             'bias_constraint': constraints.serialize(self.bias_constraint),
             'dropout': self.dropout,
             'recurrent_dropout': self.recurrent_dropout,
+            'recurrent_dropconnect': self.recurrent_dropconnect,
             'return_splits': self.return_splits,
         }
         base_config = super(ONLSTMCell, self).get_config()
@@ -327,11 +362,11 @@ class ONLSTM(layers.RNN):
         recurrent_constraint: Constraint function applied to the `recurrent_kernel` weights matrix.
         bias_constraint: Constraint function applied to the bias vector.
         dropout: Float between 0 and 1.
-            Fraction of the units to drop for
-            the linear transformation of the inputs.
+            Fraction of the units to drop for the linear transformation of the inputs.
         recurrent_dropout: Float between 0 and 1.
-            Fraction of the units to drop for
-            the linear transformation of the recurrent state.
+            Fraction of the units to drop for the linear transformation of the recurrent state.
+        recurrent_dropconnect: Float between 0 and 1.
+            Fraction of the units to drop for the linear transformation of hidden states.
         return_sequences: Boolean. Whether to return the last output
             in the output sequence, or the full sequence.
         return_state: Boolean. Whether to return the last state
@@ -372,6 +407,7 @@ class ONLSTM(layers.RNN):
                  bias_constraint=None,
                  dropout=0.,
                  recurrent_dropout=0.,
+                 recurrent_dropconnect=0.,
                  return_sequences=False,
                  return_state=False,
                  return_splits=False,
@@ -387,6 +423,7 @@ class ONLSTM(layers.RNN):
                 'or use the TensorFlow backend.')
             dropout = 0.
             recurrent_dropout = 0.
+            recurrent_dropconnect = 0.
         cell = ONLSTMCell(
             units,
             chunk_size,
@@ -405,6 +442,7 @@ class ONLSTM(layers.RNN):
             bias_constraint=bias_constraint,
             dropout=dropout,
             recurrent_dropout=recurrent_dropout,
+            recurrent_dropconnect=recurrent_dropconnect,
             return_splits=return_splits,
         )
         self.return_splits = return_splits
@@ -526,6 +564,10 @@ class ONLSTM(layers.RNN):
     def recurrent_dropout(self):
         return self.cell.recurrent_dropout
 
+    @property
+    def recurrent_dropconnect(self):
+        return self.cell.recurrent_dropconnect
+
     def get_config(self):
         config = {
             'units': self.units,
@@ -546,6 +588,7 @@ class ONLSTM(layers.RNN):
             'bias_constraint': constraints.serialize(self.bias_constraint),
             'dropout': self.dropout,
             'recurrent_dropout': self.recurrent_dropout,
+            'recurrent_dropconnect': self.recurrent_dropconnect,
             'return_splits': self.return_splits,
         }
         base_config = super(ONLSTM, self).get_config()

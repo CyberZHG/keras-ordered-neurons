@@ -47,6 +47,7 @@ class TestONLSTM(TestCase):
             units=50,
             chunk_size=5,
             dropout=0.1,
+            recurrent_dropconnect=0.1,
             use_bias=False,
             return_sequences=True,
         )))
