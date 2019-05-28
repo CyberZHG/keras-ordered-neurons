@@ -290,8 +290,8 @@ class ONLSTMCell(layers.Layer):
         if self.return_splits:
             df = self.master_units - K.sum(mf, axis=-1, keepdims=True)
             di = K.sum(mi, axis=-1, keepdims=True)
-        mf = K.repeat_elements(mf, self.chunk_size, axis=-1)
-        mi = K.repeat_elements(mi, self.chunk_size, axis=-1)
+        mf = K.reshape(K.tile(K.expand_dims(mf, axis=-1), [1, 1, self.chunk_size]), (-1, self.units))
+        mi = K.reshape(K.tile(K.expand_dims(mi, axis=-1), [1, 1, self.chunk_size]), (-1, self.units))
         w = mf * mi
         f = f * w + (mf - w)
         i = i * w + (mi - w)
