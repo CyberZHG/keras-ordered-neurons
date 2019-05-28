@@ -3,7 +3,16 @@
 [![Travis](https://travis-ci.org/CyberZHG/keras-ordered-neurons.svg)](https://travis-ci.org/CyberZHG/keras-ordered-neurons)
 [![Coverage](https://coveralls.io/repos/github/CyberZHG/keras-ordered-neurons/badge.svg?branch=master)](https://coveralls.io/github/CyberZHG/keras-ordered-neurons)
 [![Version](https://img.shields.io/pypi/v/keras-ordered-neurons.svg)](https://pypi.org/project/keras-ordered-neurons/)
+![Downloads](https://img.shields.io/pypi/dm/keras-ordered-neurons.svg)
 [![996.ICU](https://img.shields.io/badge/license-Anti%20996-blue.svg)](https://996.icu) 
+
+![](https://img.shields.io/badge/keras-tensorflow-blue.svg)
+![](https://img.shields.io/badge/keras-theano-blue.svg)
+![](https://img.shields.io/badge/keras-cntk-blue.svg)
+![](https://img.shields.io/badge/keras-tf.keras-blue.svg)
+![](https://img.shields.io/badge/keras-tf.keras/eager-blue.svg)
+
+\[[中文](https://github.com/CyberZHG/keras-ordered-neurons/blob/master/README.zh-CN.md)|[English](https://github.com/CyberZHG/keras-ordered-neurons/blob/master/README.md)\]
 
 [ON-LSTM](https://openreview.net/pdf?id=B1l6qiR5F7)的非官方实现。
 
