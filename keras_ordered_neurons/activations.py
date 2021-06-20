@@ -18,7 +18,4 @@ def cumax(x, axis=-1):
     # Raises
         ValueError: In case `dim(x) == 1`.
     """
-    if K.backend() == 'cntk':
-        from .cntk_backend import cumsum
-        return cumsum(activations.softmax(x, axis), axis)
     return K.cumsum(activations.softmax(x, axis), axis)

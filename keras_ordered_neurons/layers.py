@@ -1,5 +1,7 @@
 import warnings
 
+from keras import backend
+
 from .backend import layers, activations, initializers, regularizers, constraints
 from .backend import backend as K
 
@@ -104,9 +106,10 @@ class ONLSTMCell(layers.Layer):
         else:
             self.state_size = (self.units, self.units)
         self.output_size = self.units
-        self._dropout_mask = None
-        self._recurrent_dropout_mask = None
-        self._recurrect_dropconnect_masks = None
+        self._dropout_mask_cache = backend.ContextValueCache(self._create_dropout_mask)
+        self._recurrent_dropout_mask_cache = backend.ContextValueCache(self._create_recurrent_dropout_mask)
+        self._recurrent_dropconnect_mask_caches = [backend.ContextValueCache(self._create_recurrent_dropconnect_masks)
+                                                   for _ in range(6)]
 
         self.kernel, self.recurrent_kernel, self.bias = None, None, None
         self.kernel_i, self.kernel_f, self.kernel_c, self.kernel_o, self.kernel_mf, self.kernel_mi = (None,) * 6
@@ -184,46 +187,76 @@ class ONLSTMCell(layers.Layer):
             self.bias_mi = None
         super(ONLSTMCell, self).build(input_shape)
 
+    def __getstate__(self):
+        # Used for deepcopy. The caching can't be pickled by python, since it will
+        # contain tensor and graph.
+        state = super().__getstate__()
+        state.pop('_dropout_mask_cache', None)
+        state.pop('_recurrent_dropout_mask_cache', None)
+        state.pop('_recurrent_dropconnect_mask_caches', None)
+        return state
+
+    def __setstate__(self, state):
+        state['_dropout_mask_cache'] = backend.ContextValueCache(self._create_dropout_mask)
+        state['_recurrent_dropout_mask_cache'] = backend.ContextValueCache(self._create_recurrent_dropout_mask)
+        state['_recurrent_dropconnect_mask_caches'] = [
+            backend.ContextValueCache(self._create_recurrent_dropconnect_masks) for _ in range(6)]
+        super().__setstate__(state)
+
+    def _create_dropout_mask(self, inputs, training, count=1):
+        return _generate_dropout_mask(
+            K.ones_like(inputs),
+            self.dropout,
+            training=training,
+            count=count)
+
+    def _create_recurrent_dropout_mask(self, inputs, training, count=1):
+        return _generate_dropout_mask(
+            K.ones_like(inputs),
+            self.recurrent_dropout,
+            training=training,
+            count=count)
+
+    def _create_recurrent_dropconnect_masks(self, inputs, training, count=1):
+        return _generate_dropout_mask(
+            K.ones_like(inputs),
+            self.recurrent_dropconnect,
+            training=training,
+            count=count)
+
+    def reset_dropout_masks(self):
+        self._dropout_mask_cache.clear()
+        self._recurrent_dropout_mask_cache.clear()
+        for cache in self._recurrent_dropconnect_mask_caches:
+            cache.clear()
+
     def call(self, inputs, states, training=None):
         h_tm1 = states[0]  # previous memory state
         c_tm1 = states[1]  # previous carry state
         if self.return_splits:
             h_tm1 = h_tm1[:, :-2]
 
-        if 0 < self.dropout < 1 and self._dropout_mask is None:
-            self._dropout_mask = _generate_dropout_mask(
-                K.ones_like(inputs),
-                self.dropout,
-                training=training,
-                count=6)
-        if 0 < self.recurrent_dropout < 1 and self._recurrent_dropout_mask is None:
-            self._recurrent_dropout_mask = _generate_dropout_mask(
-                K.ones_like(h_tm1),
-                self.recurrent_dropout,
-                training=training,
-                count=6)
-
-        if 0 < self.recurrent_dropconnect < 1 and self._recurrect_dropconnect_masks is None:
-            self._recurrect_dropconnect_masks = [
-                _generate_dropout_mask(
-                    K.ones_like(recurrent_kernel),
-                    self.recurrent_dropconnect,
-                    training=training,
-                ) for recurrent_kernel in [
+        dp_mask = None
+        if 0 < self.dropout < 1:
+            dp_mask = self._dropout_mask_cache.setdefault(
+                kwargs=dict(inputs=inputs, training=training, count=6))
+        rec_dp_mask = None
+        if 0 < self.recurrent_dropout < 1:
+            rec_dp_mask = self._recurrent_dropout_mask_cache.setdefault(
+                kwargs=dict(inputs=h_tm1, training=training, count=6))
+        rec_dc_mask = None
+        if 0 < self.recurrent_dropconnect < 1:
+            rec_dc_mask = [
+                self._recurrent_dropconnect_mask_caches[i].setdefault(
+                    kwargs=dict(inputs=recurrent_kernel, training=training))
+                for i, recurrent_kernel in enumerate([
                     self.recurrent_kernel_i,
                     self.recurrent_kernel_f,
                     self.recurrent_kernel_c,
                     self.recurrent_kernel_o,
                     self.recurrent_kernel_mf,
                     self.recurrent_kernel_mi,
-                ]]
-
-        # dropout matrices for input units
-        dp_mask = self._dropout_mask
-        # dropout matrices for recurrent units
-        rec_dp_mask = self._recurrent_dropout_mask
-        # dropconnect matrices for recurrent weights
-        rec_dc_mask = self._recurrect_dropconnect_masks
+                ])]
 
         if 0 < self.dropout < 1.:
             inputs_i = inputs * dp_mask[0]
@@ -476,8 +509,7 @@ class ONLSTM(layers.RNN):
         return outputs_masks
 
     def call(self, inputs, mask=None, training=None, initial_state=None):
-        self.cell._dropout_mask = None
-        self.cell._recurrent_dropout_mask = None
+        self.cell.reset_dropout_masks()
         outputs = super(ONLSTM, self).call(
             inputs,
             mask=mask,

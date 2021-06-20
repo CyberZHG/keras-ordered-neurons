@@ -2,20 +2,12 @@ import os
 import tempfile
 from unittest import TestCase
 import numpy as np
-from keras_ordered_neurons.backend import models, layers, callbacks, EAGER_MODE
+from keras_ordered_neurons.backend import models, layers, callbacks
 from keras_ordered_neurons.backend import backend as K
 from keras_ordered_neurons import ONLSTM
 
 
 class TestONLSTM(TestCase):
-
-    @staticmethod
-    def _get_optimizer():
-        optimizer = 'adam'
-        if EAGER_MODE:
-            import tensorflow as tf
-            optimizer = tf.train.AdamOptimizer()
-        return optimizer
 
     def test_invalid_chunk_size(self):
         with self.assertRaises(ValueError):
@@ -29,7 +21,7 @@ class TestONLSTM(TestCase):
         embed = layers.Embedding(input_dim=10, output_dim=100)(inputs)
         outputs = ONLSTM(units=50, chunk_size=5, return_sequences=True, return_splits=True)(embed)
         model = models.Model(inputs=inputs, outputs=outputs)
-        model.compile(optimizer=self._get_optimizer(), loss='mse')
+        model.compile(optimizer='adam', loss='mse')
         model.summary(line_length=120)
         predicted = model.predict(np.random.randint(0, 10, (3, 7)))
         self.assertEqual((3, 7, 50), predicted[0].shape)
@@ -42,7 +34,7 @@ class TestONLSTM(TestCase):
         embed = layers.Embedding(input_dim=10, output_dim=100)(inputs)
         outputs = ONLSTM(units=50, chunk_size=5, return_splits=True)(embed)
         model = models.Model(inputs=inputs, outputs=outputs)
-        model.compile(optimizer=self._get_optimizer(), loss='mse')
+        model.compile(optimizer='adam', loss='mse')
         model.summary(line_length=120)
         predicted = model.predict(np.random.randint(0, 10, (3, 7)))
         self.assertEqual((3, 50), predicted[0].shape)
@@ -67,12 +59,12 @@ class TestONLSTM(TestCase):
         )))
         model.add(layers.Bidirectional(ONLSTM(units=50, chunk_size=5, unit_forget_bias=False)))
         model.add(layers.Dense(units=2, activation='softmax'))
-        model.compile(optimizer=self._get_optimizer(), loss='sparse_categorical_crossentropy')
+        model.compile(optimizer='adam', loss='sparse_categorical_crossentropy')
 
         model_path = os.path.join(tempfile.gettempdir(), 'test_on_lstm_%f.h5' % np.random.random())
         model.save(model_path)
         model = models.load_model(model_path, custom_objects={'ONLSTM': ONLSTM})
-        model.compile(optimizer=self._get_optimizer(), loss='sparse_categorical_crossentropy')
+        model.compile(optimizer='adam', loss='sparse_categorical_crossentropy')
 
         data_size, seq_len = 10000, 17
         x = np.random.randint(0, 10, (data_size, seq_len))
@@ -94,7 +86,6 @@ class TestONLSTM(TestCase):
         model = models.load_model(model_path, custom_objects={'ONLSTM': ONLSTM})
 
         predicted = model.predict(x).argmax(axis=-1)
-        if EAGER_MODE:
-            self.assertLess(np.sum(np.abs(y - predicted)), data_size // 2)
-        else:
-            self.assertLess(np.sum(np.abs(y - predicted)), data_size // 100)
+        num_errors = np.sum(np.abs(y - predicted))
+        expect = data_size // 2
+        self.assertLess(num_errors, expect, f'Error: {num_errors} Expect: {expect}')
