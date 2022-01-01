@@ -1,5 +1,5 @@
-from .backend import activations
-from .backend import backend as K
+from tensorflow import keras
+from tensorflow.keras import backend as K
 
 
 __all__ = ['cumax']
@@ -18,4 +18,4 @@ def cumax(x, axis=-1):
     # Raises
         ValueError: In case `dim(x) == 1`.
     """
-    return K.cumsum(activations.softmax(x, axis), axis)
+    return K.cumsum(keras.activations.softmax(x, axis), axis)

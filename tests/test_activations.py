@@ -1,6 +1,8 @@
 from unittest import TestCase
+
 import numpy as np
-from keras_ordered_neurons.backend import backend as K
+from tensorflow.keras import backend as K
+
 from keras_ordered_neurons import cumax
 
 

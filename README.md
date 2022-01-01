@@ -1,9 +1,6 @@
 # Keras Ordered Neurons LSTM
 
-[![Travis](https://travis-ci.org/CyberZHG/keras-ordered-neurons.svg)](https://travis-ci.org/CyberZHG/keras-ordered-neurons)
-[![Coverage](https://coveralls.io/repos/github/CyberZHG/keras-ordered-neurons/badge.svg?branch=master)](https://coveralls.io/github/CyberZHG/keras-ordered-neurons)
 [![Version](https://img.shields.io/pypi/v/keras-ordered-neurons.svg)](https://pypi.org/project/keras-ordered-neurons/)
-![Downloads](https://img.shields.io/pypi/dm/keras-ordered-neurons.svg)
 
 \[[中文](https://github.com/CyberZHG/keras-ordered-neurons/blob/master/README.zh-CN.md)|[English](https://github.com/CyberZHG/keras-ordered-neurons/blob/master/README.md)\]
 
@@ -22,8 +19,9 @@ pip install keras-ordered-neurons
 Same as `LSTM` except that an extra argument `chunk_size` should be given:
 
 ```python
-from keras.models import Sequential
-from keras.layers import Embedding, Bidirectional, Dense
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Embedding, Bidirectional, Dense
+
 from keras_ordered_neurons import ONLSTM
 
 model = Sequential()
@@ -49,8 +47,9 @@ ONLSTM(units=50, chunk_size=5, recurrent_dropconnect=0.2)
 Set `return_splits` to `True` if you want to know the expected split points of master forget gate and master input gate.
 
 ```python
-from keras.models import Model
-from keras.layers import Input, Embedding
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Embedding
+
 from keras_ordered_neurons import ONLSTM
 
 inputs = Input(shape=(None,))
@@ -60,7 +59,3 @@ model = Model(inputs=inputs, outputs=splits)
 model.compile(optimizer='adam', loss='mse')
 model.summary(line_length=120)
 ```
-
-### `tf.keras`
-
-Add `TF_KERAS=1` to environment variables if you are using `tensorflow.python.keras`.

@@ -2,8 +2,8 @@ import warnings
 
 from keras import backend
 
-from .backend import layers, activations, initializers, regularizers, constraints
-from .backend import backend as K
+from tensorflow import keras
+from tensorflow.keras import backend as K
 
 from .activations import cumax
 
@@ -19,7 +19,7 @@ def _generate_dropout_mask(ones, rate, training=None, count=1):
     return K.in_train_phase(dropped_inputs, ones, training=training)
 
 
-class ONLSTMCell(layers.Layer):
+class ONLSTMCell(keras.layers.Layer):
     """Cell class for the ON-LSTM layer.
 
     # Arguments
@@ -78,22 +78,22 @@ class ONLSTMCell(layers.Layer):
         self.units = units
         self.chunk_size = chunk_size
         self.master_units = self.units // self.chunk_size
-        self.activation = activations.get(activation)
-        self.recurrent_activation = activations.get(recurrent_activation)
+        self.activation = keras.activations.get(activation)
+        self.recurrent_activation = keras.activations.get(recurrent_activation)
         self.use_bias = use_bias
 
-        self.kernel_initializer = initializers.get(kernel_initializer)
-        self.recurrent_initializer = initializers.get(recurrent_initializer)
-        self.bias_initializer = initializers.get(bias_initializer)
+        self.kernel_initializer = keras.initializers.get(kernel_initializer)
+        self.recurrent_initializer = keras.initializers.get(recurrent_initializer)
+        self.bias_initializer = keras.initializers.get(bias_initializer)
         self.unit_forget_bias = unit_forget_bias
 
-        self.kernel_regularizer = regularizers.get(kernel_regularizer)
-        self.recurrent_regularizer = regularizers.get(recurrent_regularizer)
-        self.bias_regularizer = regularizers.get(bias_regularizer)
+        self.kernel_regularizer = keras.regularizers.get(kernel_regularizer)
+        self.recurrent_regularizer = keras.regularizers.get(recurrent_regularizer)
+        self.bias_regularizer = keras.regularizers.get(bias_regularizer)
 
-        self.kernel_constraint = constraints.get(kernel_constraint)
-        self.recurrent_constraint = constraints.get(recurrent_constraint)
-        self.bias_constraint = constraints.get(bias_constraint)
+        self.kernel_constraint = keras.constraints.get(kernel_constraint)
+        self.recurrent_constraint = keras.constraints.get(recurrent_constraint)
+        self.bias_constraint = keras.constraints.get(bias_constraint)
 
         self.dropout = min(1., max(0., dropout))
         self.recurrent_dropout = min(1., max(0., recurrent_dropout))
@@ -142,7 +142,7 @@ class ONLSTMCell(layers.Layer):
                 def bias_initializer(_, *args, **kwargs):
                     return K.concatenate([
                         self.bias_initializer((self.units,), *args, **kwargs),
-                        initializers.Ones()((self.units,), *args, **kwargs),
+                        keras.initializers.Ones()((self.units,), *args, **kwargs),
                         self.bias_initializer((self.units * 2 + self.master_units * 2,), *args, **kwargs),
                     ])
             else:
@@ -343,19 +343,19 @@ class ONLSTMCell(layers.Layer):
         config = {
             'units': self.units,
             'chunk_size': self.chunk_size,
-            'activation': activations.serialize(self.activation),
-            'recurrent_activation': activations.serialize(self.recurrent_activation),
+            'activation': keras.activations.serialize(self.activation),
+            'recurrent_activation': keras.activations.serialize(self.recurrent_activation),
             'use_bias': self.use_bias,
-            'kernel_initializer': initializers.serialize(self.kernel_initializer),
-            'recurrent_initializer': initializers.serialize(self.recurrent_initializer),
-            'bias_initializer': initializers.serialize(self.bias_initializer),
+            'kernel_initializer': keras.initializers.serialize(self.kernel_initializer),
+            'recurrent_initializer': keras.initializers.serialize(self.recurrent_initializer),
+            'bias_initializer': keras.initializers.serialize(self.bias_initializer),
             'unit_forget_bias': self.unit_forget_bias,
-            'kernel_regularizer': regularizers.serialize(self.kernel_regularizer),
-            'recurrent_regularizer': regularizers.serialize(self.recurrent_regularizer),
-            'bias_regularizer': regularizers.serialize(self.bias_regularizer),
-            'kernel_constraint': constraints.serialize(self.kernel_constraint),
-            'recurrent_constraint': constraints.serialize(self.recurrent_constraint),
-            'bias_constraint': constraints.serialize(self.bias_constraint),
+            'kernel_regularizer': keras.regularizers.serialize(self.kernel_regularizer),
+            'recurrent_regularizer': keras.regularizers.serialize(self.recurrent_regularizer),
+            'bias_regularizer': keras.regularizers.serialize(self.bias_regularizer),
+            'kernel_constraint': keras.constraints.serialize(self.kernel_constraint),
+            'recurrent_constraint': keras.constraints.serialize(self.recurrent_constraint),
+            'bias_constraint': keras.constraints.serialize(self.bias_constraint),
             'dropout': self.dropout,
             'recurrent_dropout': self.recurrent_dropout,
             'recurrent_dropconnect': self.recurrent_dropconnect,
@@ -365,7 +365,7 @@ class ONLSTMCell(layers.Layer):
         return dict(list(base_config.items()) + list(config.items()))
 
 
-class ONLSTM(layers.RNN):
+class ONLSTM(keras.layers.RNN):
     """Ordered Neurons LSTM
 
     # Arguments
@@ -487,7 +487,7 @@ class ONLSTM(layers.RNN):
             stateful=stateful,
             unroll=unroll,
             **kwargs)
-        self.activity_regularizer = regularizers.get(activity_regularizer)
+        self.activity_regularizer = keras.regularizers.get(activity_regularizer)
 
     def compute_output_shape(self, input_shape):
         output_shapes = super(ONLSTM, self).compute_output_shape(input_shape)
@@ -604,20 +604,20 @@ class ONLSTM(layers.RNN):
         config = {
             'units': self.units,
             'chunk_size': self.chunk_size,
-            'activation': activations.serialize(self.activation),
-            'recurrent_activation': activations.serialize(self.recurrent_activation),
+            'activation': keras.activations.serialize(self.activation),
+            'recurrent_activation': keras.activations.serialize(self.recurrent_activation),
             'use_bias': self.use_bias,
-            'kernel_initializer': initializers.serialize(self.kernel_initializer),
-            'recurrent_initializer': initializers.serialize(self.recurrent_initializer),
-            'bias_initializer': initializers.serialize(self.bias_initializer),
+            'kernel_initializer': keras.initializers.serialize(self.kernel_initializer),
+            'recurrent_initializer': keras.initializers.serialize(self.recurrent_initializer),
+            'bias_initializer': keras.initializers.serialize(self.bias_initializer),
             'unit_forget_bias': self.unit_forget_bias,
-            'kernel_regularizer': regularizers.serialize(self.kernel_regularizer),
-            'recurrent_regularizer': regularizers.serialize(self.recurrent_regularizer),
-            'bias_regularizer': regularizers.serialize(self.bias_regularizer),
-            'activity_regularizer': regularizers.serialize(self.activity_regularizer),
-            'kernel_constraint': constraints.serialize(self.kernel_constraint),
-            'recurrent_constraint': constraints.serialize(self.recurrent_constraint),
-            'bias_constraint': constraints.serialize(self.bias_constraint),
+            'kernel_regularizer': keras.regularizers.serialize(self.kernel_regularizer),
+            'recurrent_regularizer': keras.regularizers.serialize(self.recurrent_regularizer),
+            'bias_regularizer': keras.regularizers.serialize(self.bias_regularizer),
+            'activity_regularizer': keras.regularizers.serialize(self.activity_regularizer),
+            'kernel_constraint': keras.constraints.serialize(self.kernel_constraint),
+            'recurrent_constraint': keras.constraints.serialize(self.recurrent_constraint),
+            'bias_constraint': keras.constraints.serialize(self.bias_constraint),
             'dropout': self.dropout,
             'recurrent_dropout': self.recurrent_dropout,
             'recurrent_dropconnect': self.recurrent_dropconnect,
